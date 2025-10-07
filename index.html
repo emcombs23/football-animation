@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Football Field Animation</title>
+  <style>
+    body {
+      background: #000;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    #field {
+      background: #228B22;
+      border: 4px solid #fff;
+      border-radius: 16px;
+      box-shadow: 0 0 32px #111;
+      display: block;
+      /* Make the field vertical */
+      transform: rotate(0deg);
+    }
+  </style>
+</head>
+<body>
+  <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 16px;">
+    <label for="route-select" style="color: #fff; font-size: 1.1em; margin-bottom: 6px;">Select Route Type:</label>
+    <select id="route-select" style="font-size: 1em; padding: 4px 12px; border-radius: 6px; border: none;">
+      <option value="Flat">Flat</option>
+      <option value="Slant">Slant</option>
+      <option value="Comeback">Comeback</option>
+      <option value="Curl">Curl</option>
+      <option value="Out">Out</option>
+      <option value="Dig">Dig</option>
+      <option value="Corner">Corner</option>
+      <option value="Post">Post</option>
+      <option value="Fade">Fade</option>
+    </select>
+  </div>
+  <canvas id="field" width="400" height="900"></canvas>
+  <script>
+    const canvas = document.getElementById('field');
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+
+    function drawField() {
+      // Clear
+      ctx.clearRect(0, 0, w, h);
+      // Field outline
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(0, 0, w, h);
+      // End zones
+      ctx.fillStyle = '#1e90ff';
+      ctx.fillRect(0, 0, w, 75);
+      ctx.fillRect(0, h - 75, w, 75);
+      // Yard lines
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      for (let y = 75; y <= h - 75; y += 37.5) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+      // Hash marks
+      ctx.lineWidth = 1;
+      for (let y = 75 + 7.5; y < h - 75; y += 7.5) {
+        ctx.beginPath(); ctx.moveTo(60, y); ctx.lineTo(80, y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(w - 80, y); ctx.lineTo(w - 60, y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(w/2 - 10, y); ctx.lineTo(w/2 + 10, y); ctx.stroke();
+      }
+      // Numbers
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 20px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (let i = 10; i <= 50; i += 10) {
+        let y1 = 75 + i * 7.5;
+        let y2 = h - 75 - i * 7.5;
+        ctx.save(); ctx.translate(w/2, y1); ctx.rotate(-Math.PI/2);
+        ctx.fillText(i.toString(), 0, -w/2 + 30); ctx.restore();
+        ctx.save(); ctx.translate(w/2, y2); ctx.rotate(Math.PI/2);
+        ctx.fillText(i.toString(), 0, -w/2 + 30); ctx.restore();
+      }
+      ctx.save(); ctx.translate(w/2, h/2); ctx.rotate(-Math.PI/2);
+      ctx.fillText('50', 0, -w/2 + 30); ctx.restore();
+      // Goal lines
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(0, 75); ctx.lineTo(w, 75);
+      ctx.moveTo(0, h - 75); ctx.lineTo(w, h - 75); ctx.stroke();
+      // Field goal posts
+      ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(w/2 - 30, 30); ctx.lineTo(w/2 + 30, 30);
+      ctx.moveTo(w/2, 30); ctx.lineTo(w/2, 75); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(w/2 - 30, h - 30); ctx.lineTo(w/2 + 30, h - 30);
+      ctx.moveTo(w/2, h - 30); ctx.lineTo(w/2, h - 75); ctx.stroke();
+    }
+
+    // Route definitions (relative to field)
+    // All routes start at the bottom hash, center of field horizontally
+    const startX = w / 2;
+    const startY = h - 75 - 10; // 10px above bottom goal line
+    // Each route is an array of points [{x, y}] in field coordinates
+    const routes = {
+      Flat:      [{x: startX, y: startY}, {x: startX + 80, y: startY - 60}],
+      Slant:     [{x: startX, y: startY}, {x: startX + 40, y: startY - 100}],
+      Comeback:  [{x: startX, y: startY}, {x: startX, y: startY - 180}, {x: startX - 30, y: startY - 120}],
+      Curl:      [{x: startX, y: startY}, {x: startX, y: startY - 140}, {x: startX, y: startY - 110}],
+      Out:       [{x: startX, y: startY}, {x: startX, y: startY - 120}, {x: startX + 80, y: startY - 120}],
+      Dig:       [{x: startX, y: startY}, {x: startX, y: startY - 200}, {x: startX - 80, y: startY - 200}],
+      Corner:    [{x: startX, y: startY}, {x: startX, y: startY - 120}, {x: startX + 80, y: startY - 200}],
+      Post:      [{x: startX, y: startY}, {x: startX, y: startY - 120}, {x: startX - 60, y: startY - 200}],
+      Fade:      [{x: startX, y: startY}, {x: startX, y: 75 + 20}],
+    };
+
+    function animateRoute(routeName) {
+      const points = routes[routeName];
+      if (!points) return;
+      let progress = 0;
+      const totalSegments = points.length - 1;
+      let seg = 0;
+      let segProgress = 0;
+      const speed = 3; // px per frame
+
+      function drawRoute(currentSeg, currentSegProgress) {
+        ctx.save();
+        ctx.strokeStyle = '#ff0';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < currentSeg; i++) {
+          ctx.lineTo(points[i].x, points[i].y);
+        }
+        // Interpolate current segment
+        if (currentSeg < points.length) {
+          const p0 = points[currentSeg - 1];
+          const p1 = points[currentSeg];
+          const dx = p1.x - p0.x;
+          const dy = p1.y - p0.y;
+          ctx.lineTo(p0.x + dx * currentSegProgress, p0.y + dy * currentSegProgress);
+        }
+        ctx.stroke();
+        ctx.restore();
+        // Draw receiver
+        let rx, ry;
+        if (currentSeg < points.length) {
+          const p0 = points[currentSeg - 1];
+          const p1 = points[currentSeg];
+          rx = p0.x + (p1.x - p0.x) * currentSegProgress;
+          ry = p0.y + (p1.y - p0.y) * currentSegProgress;
+        } else {
+          rx = points[points.length - 1].x;
+          ry = points[points.length - 1].y;
+        }
+        ctx.save();
+        ctx.fillStyle = '#f00';
+        ctx.beginPath();
+        ctx.arc(rx, ry, 10, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function step() {
+        drawField();
+        drawRoute(seg + 1, segProgress);
+        // Advance animation
+        const p0 = points[seg];
+        const p1 = points[seg + 1];
+        const dx = p1.x - p0.x;
+        const dy = p1.y - p0.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const stepFrac = speed / dist;
+        segProgress += stepFrac;
+        if (segProgress >= 1) {
+          seg++;
+          segProgress = 0;
+        }
+        if (seg < totalSegments) {
+          requestAnimationFrame(step);
+        } else {
+          // Draw final route
+          drawField();
+          drawRoute(points.length, 1);
+        }
+      }
+      step();
+    }
+
+    // Initial draw
+    drawField();
+
+    // Dropdown event
+    const routeSelect = document.getElementById('route-select');
+    routeSelect.addEventListener('change', function() {
+      drawField();
+      animateRoute(this.value);
+    });
+
+    // Animate initial route
+    animateRoute(routeSelect.value);
+  </script>
+</body>
+</html>
